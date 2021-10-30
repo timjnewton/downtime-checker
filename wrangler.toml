@@ -1,0 +1,16 @@
+name = "downtime-checker"
+type = "webpack"
+
+account_id = "d386dce443b620e59942b0e38c9679ee"
+workers_dev = true
+route = ""
+zone_id = ""
+compatibility_date = "2021-10-07"
+
+
+kv_namespaces = [ 
+  { binding = "KV", id = "25060327be384621ae7c3ed5d0aca7a7",  preview_id = "fbc867a5158e49e3a80500dd488ee664" }
+]
+
+[triggers]
+crons = ["* * * * *"]
