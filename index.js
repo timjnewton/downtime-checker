@@ -62,7 +62,11 @@ async function cronEventWrapper() {
 
 }
 
-
+/*
+  All Routing is done using basic string checking. This is sufficient from the POC
+  Endpoints that return JSON and classified as APIs these are all under /api/v1
+  Endpoints that return html are classified as UIs these are all under /ui/v1  
+*/
 
 addEventListener('fetch', event => {
   const _url = event.request.url;
@@ -96,63 +100,6 @@ addEventListener('fetch', event => {
   }
 })
 
-
-/*
-  Called by the cron trigger after all the monitors have been checked and the status object has been updated. 
-  This monitor determines if any failure or recovery emails need to be sent. Failure emails are sent when a 
-  monitor first fails and then every hour after that while the monitor is not fixed.
-  Recovery emails are sent when a monitor recovers after a previous fail. These should only be sent once. 
-*/
-
-async function sendNotifications() {
-
-  console.log("in sendNotifications");
-  _status = await getStatus();
-  statusUpdated = false;
-
-  for (item of _status.urls) {
-    let notification = false;
-    if (item.last_failed != null) {
-      console.log(`we found a failure for ${item.name} for date : ${getDateTimeFromTimestamp(parseInt(item.last_failed))}`);
-      // we have a failed monitor.
-      if ((item.last_success != null && item.last_failed > item.last_success) || (item.last_success == null || item.last_success === "")) {
-        // the failure is more recent than the success, need to notify
-        notification = true;
-        console.log(`we found a failure for ${item.name} for date : ${getDateTimeFromTimestamp(parseInt(item.last_failed))} this is more recent than the last successful ping at ${getDateTimeFromTimestamp(parseInt(item.last_success))}`);
-      }
-
-      if (notification) {
-        // check to see if we have notified before.
-        console.log(`item.fail_notification_date : ${item.fail_notification_date}`);
-        // only send the email if the notification date has not been set or an hour has elapsed since the last notification.
-        if (!item.fail_notification_date || ((parseInt(item.last_failed) - parseInt(item.fail_notification_date)) > 3600000)) {
-          // send notification cos we havent already.
-          console.log("Downtime Notification");
-          await sendEmail(true, item.name);
-          item["fail_notification_date"] = Date.now();
-          item["recovery_notification_date"] = null;
-          statusUpdated = true;
-          console.log(`item : ${JSON.stringify(item)}`)
-        }
-      }
-
-      // see if we need to send a recovery notification.
-      if ((item.last_success != null && item.last_failed < item.last_success) && item.fail_notification_date < item.last_success && (!item.recovery_notification_date ||
-        (item.recovery_notification_date < item.last_failed))) {
-        console.log(`recovery notifcation`);
-        item["recovery_notification_date"] = Date.now();
-        await sendEmail(false, item.name);
-        statusUpdated = true;
-      }
-
-    }
-  }
-
-  if (statusUpdated) {
-    await updateStatus();
-  }
-}
-
 /*
   If we havent recognised the path on the request then return a 404
 */
@@ -175,6 +122,10 @@ async function listURLS(request) {
   return new Response(JSON.stringify(value))
 }
 
+/*
+  Very basic home page linking off to other UI pages. 
+*/
+
 async function homePage(request) {
 
   let html = `<head><style></style></head><body>
@@ -192,7 +143,10 @@ async function homePage(request) {
 
 }
 
-
+/*
+  display the current status object in a tabular form. Test the styling capabilities to ensure 
+  a worker can produce nice looking output.
+*/
 async function displayStatus() {
 
   _status = await getStatus(true);
@@ -258,6 +212,8 @@ async function displayStatus() {
 
 }
 
+// helper method to convert the unix time stamp to a human readable form
+
 function getDateTimeFromTimestamp(unixTimeStamp) {
   let date = new Date(unixTimeStamp);
   return ('0' + date.getDate()).slice(-2) + '/' + ('0' + (date.getMonth() + 1)).slice(-2) + '/' + date.getFullYear() + ' ' + ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2);
@@ -265,7 +221,8 @@ function getDateTimeFromTimestamp(unixTimeStamp) {
 
 
 /*
-  Add a new value to the KV for a new URL to be included in the check.
+  Add a new value to the KV for a new URL to be included in the check. This can either be called from the UI in this worker or directly from the API (via postman?)
+  This method handles both these approaches as the payload is slightly different.
 */
 
 async function addMonitor(request) {
@@ -457,16 +414,22 @@ async function getKV(name) {
   return await KV.get(name);
 }
 
+
+/*
+  Helper method to update the status object in one place
+*/
+
 function UpdateStatus(status, url, result) {
   if (url === null) // nothing supplied in the URL
   {
     return;
   }
-  //const now = new Date().toLocaleString("en-GB");  // get the GB formatted date and time
-  const now = Date.now().toString();  // get the GB formatted date and time
+   const now = Date.now().toString();  // get the GB formatted date and time
 
   let itemToUpdate = status.urls.find(x => x.name === url.url_to_monitor);
 
+  // dont include history information as the size of the object gets too big too quickly. 
+  // need to rethink how the status is tracked, Durable Object or database?
   // if (itemToUpdate && itemToUpdate.history == null)
   // {
   //   itemToUpdate.history = [];
@@ -504,6 +467,62 @@ async function getStatus(force) {
 
 async function updateStatus() {
   await KV.put("status", JSON.stringify(_status)); // we have a status object that holds the results of the queries.
+}
+
+/*
+  Called by the cron trigger after all the monitors have been checked and the status object has been updated. 
+  This monitor determines if any failure or recovery emails need to be sent. Failure emails are sent when a 
+  monitor first fails and then every hour after that while the monitor is not fixed.
+  Recovery emails are sent when a monitor recovers after a previous fail. These should only be sent once. 
+*/
+
+async function sendNotifications() {
+
+  console.log("in sendNotifications");
+  _status = await getStatus();
+  statusUpdated = false;
+
+  for (item of _status.urls) {
+    let notification = false;
+    if (item.last_failed != null) {
+      console.log(`we found a failure for ${item.name} for date : ${getDateTimeFromTimestamp(parseInt(item.last_failed))}`);
+      // we have a failed monitor.
+      if ((item.last_success != null && item.last_failed > item.last_success) || (item.last_success == null || item.last_success === "")) {
+        // the failure is more recent than the success, need to notify
+        notification = true;
+        console.log(`we found a failure for ${item.name} for date : ${getDateTimeFromTimestamp(parseInt(item.last_failed))} this is more recent than the last successful ping at ${getDateTimeFromTimestamp(parseInt(item.last_success))}`);
+      }
+
+      if (notification) {
+        // check to see if we have notified before.
+        console.log(`item.fail_notification_date : ${item.fail_notification_date}`);
+        // only send the email if the notification date has not been set or an hour has elapsed since the last notification.
+        if (!item.fail_notification_date || ((parseInt(item.last_failed) - parseInt(item.fail_notification_date)) > 3600000)) {
+          // send notification cos we havent already.
+          console.log("Downtime Notification");
+          await sendEmail(true, item.name);
+          item["fail_notification_date"] = Date.now();
+          item["recovery_notification_date"] = null;
+          statusUpdated = true;
+          console.log(`item : ${JSON.stringify(item)}`)
+        }
+      }
+
+      // see if we need to send a recovery notification.
+      if ((item.last_success != null && item.last_failed < item.last_success) && item.fail_notification_date < item.last_success && (!item.recovery_notification_date ||
+        (item.recovery_notification_date < item.last_failed))) {
+        console.log(`recovery notifcation`);
+        item["recovery_notification_date"] = Date.now();
+        await sendEmail(false, item.name);
+        statusUpdated = true;
+      }
+
+    }
+  }
+
+  if (statusUpdated) {
+    await updateStatus();
+  }
 }
 
 async function sendEmail(failureNotification, url) {
