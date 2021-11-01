@@ -534,36 +534,42 @@ async function sendEmail(failureNotification, url) {
     return;
   }
 
-  var options = {
-    "method": "POST",
-    "headers": {
-      "authorization": MAILGUN_TOKEN,
-      "content-type": "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW",
-      "cache-control": "no-cache"
-    }
-  };
-
   console.log(`notificationURL : ${notificationURL}`);
   console.log(`notificationURL["alert-email"] : ${notificationURL["alert-email"]}`);
-  const to = encodeURIComponent(notificationURL["alert-email"]);
+  const to = notificationURL["alert-email"];
   let body = "";
   let subject = "";
+  const from = `downtime-checker@newtonsoftware.net`;
   if (failureNotification) {
-    body = encodeURIComponent(`The URL ${url} could not be reached at ${(new Date).toLocaleString('en-GB')}`);
-    subject = encodeURIComponent(`The URL ${url} could not be reached at ${(new Date).toLocaleString('en-GB')}`);
+    body = `The URL ${url} could not be reached at ${(new Date).toLocaleString('en-GB')}`;
+    subject = `The URL ${url} could not be reached at ${(new Date).toLocaleString('en-GB')}`;    
   }
   else {
-    body = encodeURIComponent(`The URL ${url} has recovered at ${(new Date).toLocaleString('en-GB')}`);
-    subject = encodeURIComponent(`The URL ${url} has recovered at ${(new Date).toLocaleString('en-GB')}`);
-  }
-  const from = encodeURIComponent('Mailgun Sandbox <postmaster@sandbox4b5e63e33cab42baa0457fbc0c93dace.mailgun.org>');
+    body = `Recovered ${url} at ${(new Date).toLocaleString('en-GB')}`;
+    subject = `Recovered ${url} at ${(new Date).toLocaleString('en-GB')}`;
+  }    
 
-  console.log(`https://api.mailgun.net/v3/sandbox4b5e63e33cab42baa0457fbc0c93dace.mailgun.org/messages?from=${from}&to=${to}&text=${body}&subject=${subject}`);
-  console.log(JSON.stringify(options));
-  const  resp = await fetch(`https://api.mailgun.net/v3/sandbox4b5e63e33cab42baa0457fbc0c93dace.mailgun.org/messages?from=${from}&to=${to}&text=${body}&subject=${subject}`, options);
-  //const resp1 = await fetch(`https://api.eu.mailgun.net/v3/mg.newtonsoftware.net/messages?from=${from}&to=${to}&text=${body}&subject=${subject}`, options);
+  var myHeaders = new Headers();
+  myHeaders.append("ApiKey", EMAIL_API_KEY);
+  myHeaders.append("Content-Type", "application/json");
+  myHeaders.append("cache-control", "no-cache");
+
+  var raw = JSON.stringify({
+    "To": to,
+    "From": from,
+    "Subject": subject,
+    "Body": body
+  });
+
+  var requestOptions = {
+    method: 'POST',
+    headers: myHeaders,
+    body: raw,
+    redirect: 'follow'
+  };
+
+  var resp = await fetch("https://inspection-manager.newtonsoftware.co.uk/email-service/Email", requestOptions)
 
   console.log(JSON.stringify(resp));
-  //console.log(JSON.stringify(resp1));
-  //return new Response(`email response : ${JSON.stringify(resp)}`);
+
 }
