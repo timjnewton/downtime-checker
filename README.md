@@ -29,11 +29,6 @@ Adding a new monitor can be done via the "Add New Monitor" link on the home page
 "List monitors" (from the home page) will show a JSON list of the all monitor names. This may include URLS not seen on the status page that have yet to be tested because the cron job has yet to pickup the newly created monitor. 
 
 
-### Shortcomings 
-
-1. Email Notifications. Currently due to the REST client used to send emails (mailgun) emails can only be sent to the domain @newtonsoftware.net. I'm working to improve this by implementing a different REST email API. 
-
-
 ### TODO
 1. Allow the editting and removing of monitors from the User Interface.
 2. Make into a Single Page Application. Add Login functionality to allow users to store / modiy their own monitors. This may require further ammendments to how the data is stored in KV, as the applications scales a different storage model will be required. This might be implemented using Durable Objects or a back end database. This application will be expanded to include the following :-
